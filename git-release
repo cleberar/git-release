@@ -1,0 +1,110 @@
+#!/usr/bin/php
+<?php
+
+$options = getopt("r:", array("release:"));
+
+if (!isset($options["r"]) && !isset($options["release"])) {
+    exit('informe a release -r (--release) vx.x.x');
+}
+
+if (empty(getenv("GITHUB_ACCESSTOKEN"))) {
+    printf("\n ** Adicione seu github token como variavel de ambiente \n");
+    printf(" \t como criar um token : https://help.github.com/articles/creating-an-access-token-for-command-line-use/ \n");
+    printf(" \t criar variavel      : export GITHUB_ACCESSTOKEN=<seu token>\n");
+    exit();
+}
+
+$release = isset($options["r"]) ? $options["r"] : $options["release"];
+
+$url = "";
+$changelog = "";
+$branch = system('git rev-parse --abbrev-ref HEAD', $return);
+
+if (empty($branch)) {
+    exit("Error: Nao foi possivel identificar branch.");
+}
+
+if ($branch !== "master") {
+    echo "A branch atual nao e Master. Deseja continuar? digite 'yes': [y/n]\n";
+    fscanf(STDIN, "%s", $command);
+    if (!in_array(strtolower($command), array("yes", "y", "sim", "s"))) {
+        exit();
+    }
+}
+
+// XXX TODO :: suporte apenas a SSH, implementar parser de url http
+$url = system('git config --get remote.origin.url', $return);
+if ($return === 1) {
+    exit("Error:  ao obter configuracao do git (git config --get remote.origin.url)\n");
+}
+
+$url = explode("/", $url);
+$repo = str_replace(".git", "", array_pop($url));
+$user = str_replace("git@github.com:", "", array_pop($url));
+
+echo "Informe o changelog da release, Digite 'done' para finalizar o changelog e continar o deploy: \n";
+
+$handle = fopen("php://stdin", "r");
+do {
+
+    print "- ";
+    $line = fgets($handle);
+    $line = trim($line);
+    if ($line == "done") {
+        break;
+    }
+
+    $changelog .= sprintf("- %s \n", $line);
+
+} while ($line != "done");
+
+echo "\n";
+echo "Changelog criado, continuando ...\n";
+print $changelog;
+
+printf("Criando Release Repo %s, versao %s \n", $repo, $release);
+print "\n";
+$data = array(
+    "tag_name"         => $release,
+    "target_commitish" => "master",
+    "name"             => $release,
+    "body"             => "Release " . $release . "" . "\n\n" . $changelog,
+    "draft"            => false,
+    "prerelease"       => false
+);
+$data = json_encode($data);
+
+$url = "https://api.github.com/repos/%s/%s/releases?access_token=%s";
+printf($url, $user, $repo, getenv("GITHUB_ACCESSTOKEN"));
+
+$ch = curl_init(sprintf($url, $user, $repo, getenv("GITHUB_ACCESSTOKEN")));
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt(
+    $ch,
+    CURLOPT_HTTPHEADER,
+    array(
+        'Content-Type: application/json',
+        'User-Agent: Tags Github',
+        'Content-Length: ' . strlen($data)
+    )
+);
+ 
+$result = curl_exec($ch);
+$result = json_decode($result, true);
+
+if (isset($result["errors"])) {
+    printf("ERROR Create Release GitHub :: %s \n", $result["message"]);
+    print_r($result["errors"]);
+    exit();
+}
+
+if (!isset($result["tag_name"])) {
+    exit('ERROR Create Release GitHub, no tag name');
+}
+
+exec('git fetch', $out);
+var_dump($out);
+exec('git checkout tags/' . $result["tag_name"], $out);
+print join("\n", $out);
