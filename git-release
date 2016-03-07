@@ -66,7 +66,7 @@ printf("Criando Release Repo %s, versao %s \n", $repo, $release);
 print "\n";
 $data = array(
     "tag_name"         => $release,
-    "target_commitish" => "master",
+    "target_commitish" => $branch,
     "name"             => $release,
     "body"             => "Release " . $release . "" . "\n\n" . $changelog,
     "draft"            => false,
@@ -75,7 +75,6 @@ $data = array(
 $data = json_encode($data);
 
 $url = "https://api.github.com/repos/%s/%s/releases?access_token=%s";
-printf($url, $user, $repo, getenv("GITHUB_ACCESSTOKEN"));
 
 $ch = curl_init(sprintf($url, $user, $repo, getenv("GITHUB_ACCESSTOKEN")));
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
@@ -108,3 +107,5 @@ exec('git fetch', $out);
 var_dump($out);
 exec('git checkout tags/' . $result["tag_name"], $out);
 print join("\n", $out);
+
+system(sprintf("git checkout %s", $branch));
