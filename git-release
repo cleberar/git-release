@@ -2,9 +2,13 @@
 <?php
 
 $options = getopt("r:", array("release:"));
-
 if (!isset($options["r"]) && !isset($options["release"])) {
-    exit('informe a release -r (--release) vx.x.x');
+    $fileComposer = __DIR__ . "/../composer.json";
+    if (file_exists($fileComposer)) {
+        $composer = file_get_contents(__DIR__ . "/../composer.json");
+        $data = json_decode($composer, true);
+        $options["r"] = $data["version"];
+    }
 }
 
 if (empty(getenv("GITHUB_ACCESSTOKEN"))) {
@@ -60,7 +64,6 @@ do {
 
 echo "\n";
 echo "Changelog criado, continuando ...\n";
-print $changelog;
 
 printf("Criando Release Repo %s, versao %s \n", $repo, $release);
 print "\n";
@@ -108,3 +111,11 @@ exec('git fetch', $out);
 var_dump($out);
 exec('git checkout tags/' . $result["tag_name"], $out);
 print join("\n", $out);
+
+print "\n-------------------------------------------------------------------\n";
+printf(
+    "Atualizado %s v%s \n\n Changelog: \n\n %s",
+    implode(" ", (array_map(function($word) { return ucwords($word); }, explode("-",  $repo)))),
+    $release,
+    $changelog
+);
