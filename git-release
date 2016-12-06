@@ -18,7 +18,15 @@ if (empty(getenv("GITHUB_ACCESSTOKEN"))) {
     exit();
 }
 
+if (file_exists(__DIR__ . "/vendor")) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 $release = isset($options["r"]) ? $options["r"] : $options["release"];
+
+if (empty($release)) {
+    exit("Error: Sem Release.");
+}
 
 $url = "";
 $changelog = "";
@@ -106,6 +114,13 @@ if (!isset($result["tag_name"])) {
     exit('ERROR Create Release GitHub, no tag name');
 }
 
+if (!empty(getenv("RELEASE_SLACK_BOT"))) {
+    $message = "  " . ucfirst($repo) . " Release ". $release . "" . "\n\n Changelog: \n\n" . $changelog;
+    $client = new Maknz\Slack\Client(getenv("RELEASE_SLACK_BOT"));
+    $client->send($message);
+}
+
+
 exec('git fetch', $out);
 var_dump($out);
 exec('git checkout tags/' . $result["tag_name"], $out);
@@ -119,3 +134,4 @@ printf(
     $release,
     $changelog
 );
+
